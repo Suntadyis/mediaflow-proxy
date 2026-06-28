@@ -532,9 +532,9 @@ class PyAVDemuxer:
                     self._video_stream.fps,
                 )
 
-            elif stream.type == "audio" and self._audio_stream is None:
+            elif stream.type == "audio":
                 codec_ctx = stream.codec_context
-                self._audio_stream = DemuxedStream(
+                candidate = DemuxedStream(
                     index=stream.index,
                     codec_name=codec_ctx.name if codec_ctx else stream.codec.name,
                     codec_type="audio",
@@ -545,12 +545,25 @@ class PyAVDemuxer:
                     duration_seconds=float(stream.duration * stream.time_base) if stream.duration else 0.0,
                     extradata=bytes(codec_ctx.extradata) if codec_ctx and codec_ctx.extradata else b"",
                 )
-                logger.info(
-                    "[pyav_demuxer] Audio: %s %dHz %dch",
-                    self._audio_stream.codec_name,
-                    self._audio_stream.sample_rate,
-                    self._audio_stream.channels,
-                )
+                lang = stream.metadata.get("language", "").lower()
+                if self._audio_stream is None:
+                    self._audio_stream = candidate
+                    logger.info(
+                        "[pyav_demuxer] Audio (fallback): %s %dHz %dch lang=%s",
+                        candidate.codec_name,
+                        candidate.sample_rate,
+                        candidate.channels,
+                        lang,
+                    )
+                elif lang in ("eng", "en", "english"):
+                    self._audio_stream = candidate
+                    logger.info(
+                        "[pyav_demuxer] Audio (english preferred): %s %dHz %dch lang=%s",
+                        candidate.codec_name,
+                        candidate.sample_rate,
+                        candidate.channels,
+                        lang,
+                    )
 
     def _cleanup(self) -> None:
         """Stop threads and release all resources safely.
